@@ -62,6 +62,8 @@ Plain ESM JavaScript, no build step.
       allowFrom: ["owner@example.com"],                                     // humans allowed to talk to agents
       mutedChannels: ["alerts"],
       maxAgentChain: 4,
+      // Optional. Placeholders {where} and {others}; default is an English prompt.
+      groupPrompt: "You are in Raven, the team chat, in {where}. Other agents here: {others}. Mention another agent with @Name to ask it something. If you have nothing useful to add, reply NO_REPLY.",
       accounts: {
         atlas: {
           name: "Atlas",

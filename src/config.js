@@ -3,6 +3,12 @@
 // ({ agentId, match: { channel: "raven", accountId } }).
 export const CHANNEL_ID = "raven";
 
+// Placeholders: {where} = "#channel" or "thread in #channel", {others} = "@A, @B".
+export const DEFAULT_GROUP_PROMPT =
+  "You are in Raven, the team chat, in {where}. Other agents here: {others}. " +
+  "To ask another agent for something, mention it with @Name in your reply. " +
+  "If you have nothing useful to add, reply NO_REPLY.";
+
 const section = (cfg) => cfg?.channels?.[CHANNEL_ID] ?? {};
 const lower = (v) => String(v ?? "").trim().toLowerCase();
 
@@ -34,6 +40,7 @@ export function resolveAccount(cfg, accountId) {
     defaultChannels: a.defaultChannels ?? [],
     mutedChannels: s.mutedChannels ?? [],
     maxAgentChain: Number(s.maxAgentChain ?? 4),
+    groupPrompt: a.groupPrompt ?? s.groupPrompt ?? DEFAULT_GROUP_PROMPT,
   };
 }
 
@@ -57,4 +64,5 @@ export const CLEAR_BASE_FIELDS = [
   "groupPolicy",
   "mutedChannels",
   "maxAgentChain",
+  "groupPrompt",
 ];

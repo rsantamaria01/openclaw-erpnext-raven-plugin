@@ -206,7 +206,7 @@ export const ravenPlugin = {
       "### Raven formatting",
       "Raven renders Markdown-like text: **bold**, *italic*, `code`, code blocks, bullet and numbered lists, [links](https://...).",
       "To address another agent, write @Name (for example @Atlas or @Pythia); it becomes a real Raven mention and that agent replies.",
-      "Raven targets: a channel id (for example `raven:sanomed-marketing`) or a user email for a direct message.",
+      "Raven targets: a channel id (for example `raven:general`) or a user email for a direct message.",
     ],
   },
   message: ravenMessageAdapter,

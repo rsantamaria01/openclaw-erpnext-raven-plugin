@@ -193,7 +193,7 @@ async function decideTarget({ account, msg, cfg, log }) {
   }
 
   const label = parentChannel
-    ? `hilo en #${parentChannel.channel_name}`
+    ? `thread in #${parentChannel.channel_name}`
     : `#${channel.channel_name ?? msg.channel_id}`;
   const replyTo = Number(channel.is_thread) ? null : String(msg.name);
   return {
@@ -252,17 +252,9 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
   if (!body) return;
 
   const others = agents.filter((a) => a.user !== live.user).map((a) => `@${a.name}`);
-  const groupSystemPrompt = isDirect
+  const groupSystemPrompt = isDirect || !live.groupPrompt
     ? undefined
-    : [
-        `Estás en Raven, el chat interno de Sanomed, en ${target.label}.`,
-        others.length
-          ? `Otros agentes en Raven: ${others.join(", ")}. Para pedirle algo a otro agente, menciónalo con @Nombre en tu respuesta.`
-          : "",
-        "Si no tienes nada útil que aportar, responde NO_REPLY.",
-      ]
-        .filter(Boolean)
-        .join(" ");
+    : live.groupPrompt.replaceAll("{where}", target.label).replaceAll("{others}", others.join(", ") || "-");
 
   const mentionables = agents.map((a) => ({ name: a.name, user: a.user }));
   const allowFrom = [...live.allowFrom, ...agents.map((a) => a.user)];
