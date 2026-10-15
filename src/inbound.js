@@ -4,23 +4,28 @@
 import crypto from "node:crypto";
 import { createChannelIngressError } from "openclaw/plugin-sdk/channel-outbound";
 import { createStandardRawEventIngressMonitor } from "openclaw/plugin-sdk/channel-ingress-runtime";
+import { toInboundMediaFacts } from "openclaw/plugin-sdk/channel-inbound";
 import { readRequestBodyWithLimit, registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
 import { getRavenRuntime } from "./runtime.js";
 import { CHANNEL_ID, listAgentAccounts, resolveAccount } from "./config.js";
 import {
   displayNameOf,
+  fetchRavenFile,
   getChannelAs,
   getMessageAs,
+  getRecentMessages,
   htmlToText,
   markdownToRavenHtml,
   readSecretFile,
   sendRavenMessage,
   toggleReaction,
 } from "./client.js";
+import { sendRavenMediaUrls } from "./media.js";
+import { closeTyping, startTyping, stopTyping } from "./typing.js";
 
 const RavenIngressPermanentError = createChannelIngressError("RavenIngressPermanentError", { withReason: true });
 const MAX_BODY_BYTES = 256 * 1024;
-const THINKING_EMOJI = "👀";
+const FILE_TYPES = new Set(["File", "Image"]);
 
 // Agent-to-agent hop budget per Raven channel; a human message resets it.
 // Shared by every account in this process so one message is counted once.
@@ -247,9 +252,54 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
     }
   }
 
-  const fileNote = msg.file ? `\n[adjunto: ${msg.file}]` : "";
-  const body = `${target.text}${fileNote}`.trim();
-  if (!body) return;
+  // Attachment: Raven attaches the file after the message insert, so re-read the doc when needed.
+  let text = target.text;
+  let fileUrl = msg.file || "";
+  if (!fileUrl && FILE_TYPES.has(msg.message_type)) {
+    for (let i = 0; i < 6 && !fileUrl; i++) {
+      await sleep(500);
+      const doc = await getMessageAs(live, msg.name);
+      fileUrl = doc?.file || "";
+      if (doc && !text) text = htmlToText(doc.text || "");
+    }
+  }
+  let media = [];
+  let fileNote = "";
+  if (fileUrl) {
+    const fileName = decodeURIComponent(fileUrl.split("/").pop() || "archivo");
+    try {
+      const res = await fetchRavenFile(live, fileUrl);
+      const saved = await rt.channel.media.saveResponseMedia(res, {
+        subdir: "inbound",
+        maxBytes: live.mediaMaxBytes,
+        sourceUrl: fileUrl,
+        originalFilename: fileName,
+      });
+      media = toInboundMediaFacts([{ path: saved.path, contentType: saved.contentType, messageId: String(msg.name) }]);
+    } catch (e) {
+      log?.warn?.(`raven[${live.accountId}]: attachment ${fileName} not downloaded: ${e.message}`);
+      fileNote = `\n[adjunto no disponible: ${fileName}]`;
+    }
+  }
+  const body = `${text}${fileNote}`.trim();
+  if (!body && media.length === 0) return;
+
+  // Recent channel messages (everyone, other agents included) as platform-selected history.
+  let inboundHistory;
+  if (!isDirect && live.historyLimit > 0) {
+    inboundHistory = [];
+    for (const r of await getRecentMessages(live, String(msg.channel_id), String(msg.name), live.historyLimit)) {
+      if (r.message_type === "System") continue;
+      const rBody =
+        htmlToText(r.text || "") || (r.file ? `[archivo: ${decodeURIComponent(String(r.file).split("/").pop())}]` : "");
+      if (!rBody) continue;
+      inboundHistory.push({
+        sender: await displayNameOf(live, String(r.owner).toLowerCase()),
+        body: rBody.slice(0, 2000),
+        messageId: String(r.name),
+      });
+    }
+  }
 
   const others = agents.filter((a) => a.user !== live.user).map((a) => `@${a.name}`);
   const groupSystemPrompt = isDirect || !live.groupPrompt
@@ -258,8 +308,10 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
 
   const mentionables = agents.map((a) => ({ name: a.name, user: a.user }));
   const allowFrom = [...live.allowFrom, ...agents.map((a) => a.user)];
+  const channelId = String(msg.channel_id);
 
-  await toggleReaction(live, msg.name, THINKING_EMOJI);
+  await startTyping(live, channelId, log);
+  if (live.workingReaction) await toggleReaction(live, msg.name, live.workingReaction);
   try {
     await rt.channel.inbound.run({
       channel: CHANNEL_ID,
@@ -326,7 +378,12 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
               rawBody: input.rawText,
               commandBody: input.textForCommands,
               bodyForAgent: input.textForAgent,
+              ...(inboundHistory?.length ? { inboundHistory } : {}),
             },
+            ...(inboundHistory?.length
+              ? { sessionTranscript: { historyLimit: live.historyLimit, historyKind: "recent" } }
+              : {}),
+            ...(media.length ? { media } : {}),
             supplemental: {
               ...(quote ? { quote } : {}),
               ...(groupSystemPrompt ? { groupSystemPrompt } : {}),
@@ -337,7 +394,12 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
               ...(isDirect ? {} : { GroupSubject: target.label }),
             },
           });
-          let firstChunk = true;
+          let firstSend = true;
+          const takeReplyTo = () => {
+            const r = firstSend ? target.replyTo : null;
+            firstSend = false;
+            return r;
+          };
           return {
             cfg,
             channel: CHANNEL_ID,
@@ -347,13 +409,22 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
             delivery: {
               durable: () => ({ to: replyTarget }),
               deliver: async (payload) => {
-                const parts = [payload.text, payload.mediaUrl ? `[archivo](${payload.mediaUrl})` : null].filter(Boolean);
-                if (!parts.length) return { visibleReplySent: false };
-                const html = markdownToRavenHtml(parts.join("\n"), mentionables);
-                const replyTo = firstChunk ? target.replyTo : null;
-                firstChunk = false;
-                await sendRavenMessage(live, String(msg.channel_id), html, replyTo);
-                return { visibleReplySent: true };
+                let sent = false;
+                if (payload.text && payload.text.trim()) {
+                  await sendRavenMessage(live, channelId, markdownToRavenHtml(payload.text, mentionables), takeReplyTo());
+                  sent = true;
+                }
+                const urls = [...(payload.mediaUrls ?? []), ...(payload.mediaUrl ? [payload.mediaUrl] : [])];
+                if (urls.length) {
+                  const ids = await sendRavenMediaUrls(live, channelId, [...new Set(urls)], {
+                    cfg,
+                    agentId: route.agentId,
+                    replyTo: takeReplyTo(),
+                    log,
+                  });
+                  sent = sent || ids.length > 0;
+                }
+                return { visibleReplySent: sent };
               },
             },
             record: {
@@ -364,9 +435,12 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
       },
     });
   } finally {
-    await toggleReaction(live, msg.name, THINKING_EMOJI);
+    stopTyping(live, channelId);
+    if (live.workingReaction) await toggleReaction(live, msg.name, live.workingReaction);
   }
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- route lifecycle ----------
 
@@ -413,6 +487,7 @@ export async function registerRavenWebhookRoute({ cfg, account, log, abortSignal
         unregister();
       } finally {
         try {
+          closeTyping(account.accountId);
           await ingress.stop();
         } finally {
           if (activeRoutes.get(routeKey) === cleanup) activeRoutes.delete(routeKey);

@@ -24,6 +24,7 @@ import {
 } from "./config.js";
 import { ensureDirectChannel, markdownToRavenHtml, sendRavenMessage } from "./client.js";
 import { registerRavenWebhookRoute } from "./inbound.js";
+import { sendRavenMediaUrls } from "./media.js";
 
 const TEXT_CHUNK_LIMIT = 4000;
 const lower = (v) => String(v ?? "").trim().toLowerCase();
@@ -61,15 +62,38 @@ async function sendRavenText(ctx) {
 }
 
 async function sendRavenMedia(ctx) {
-  // Raven file upload is not wired yet: send the media as a link.
-  const text = [ctx.text, ctx.mediaUrl ? `[archivo](${ctx.mediaUrl})` : null].filter(Boolean).join("\n");
-  return await sendRavenText({ ...ctx, text });
+  if (!ctx.mediaUrl) throw new Error("Raven media send requires mediaUrl");
+  const cfg = ctx.cfg ?? {};
+  const account = resolveAccount(cfg, ctx.accountId);
+  const channelId = await resolveChannelForSend(account, ctx.to);
+  const ids = [];
+  if (ctx.text && ctx.text.trim()) ids.push((await sendRavenText({ ...ctx, to: channelId })).messageId);
+  const fileIds = await sendRavenMediaUrls(account, channelId, [ctx.mediaUrl], {
+    cfg,
+    agentId: ctx.agentId,
+    mediaAccess: ctx.mediaAccess,
+    mediaLocalRoots: ctx.mediaLocalRoots,
+    mediaReadFile: ctx.mediaReadFile,
+  });
+  if (!fileIds.length) throw new Error(`Raven could not upload ${ctx.mediaUrl}`);
+  ids.push(...fileIds);
+  const messageIds = ids.filter(Boolean);
+  return {
+    channel: CHANNEL_ID,
+    messageId: messageIds[messageIds.length - 1] ?? "",
+    target: { kind: "chat", id: channelId },
+    receipt: createMessageReceiptFromOutboundResults({
+      results: messageIds.map((messageId) => ({ channel: CHANNEL_ID, messageId, conversationId: channelId })),
+      kind: "media",
+      threadId: channelId,
+    }),
+  };
 }
 
 const ravenMessageAdapter = defineChannelMessageAdapter({
   id: CHANNEL_ID,
-  durableFinal: { capabilities: { text: true, messageSendingHooks: true } },
-  send: { text: sendRavenText },
+  durableFinal: { capabilities: { text: true, media: true, messageSendingHooks: true } },
+  send: { text: sendRavenText, media: sendRavenMedia },
 });
 
 const ravenConfigAdapter = createScopedChannelConfigAdapter({
@@ -111,7 +135,7 @@ export const ravenPlugin = {
   },
   capabilities: {
     chatTypes: ["direct", "group"],
-    media: false,
+    media: true,
     threads: false,
     reactions: false,
     edit: false,
@@ -207,6 +231,7 @@ export const ravenPlugin = {
       "Raven renders Markdown-like text: **bold**, *italic*, `code`, code blocks, bullet and numbered lists, [links](https://...).",
       "To address another agent, write @Name (for example @Atlas or @Pythia); it becomes a real Raven mention and that agent replies.",
       "Raven targets: a channel id (for example `raven:general`) or a user email for a direct message.",
+      "Files and images you send as media are uploaded to Raven as real attachments.",
     ],
   },
   message: ravenMessageAdapter,

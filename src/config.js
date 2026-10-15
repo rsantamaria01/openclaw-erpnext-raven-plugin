@@ -41,6 +41,15 @@ export function resolveAccount(cfg, accountId) {
     mutedChannels: s.mutedChannels ?? [],
     maxAgentChain: Number(s.maxAgentChain ?? 4),
     groupPrompt: a.groupPrompt ?? s.groupPrompt ?? DEFAULT_GROUP_PROMPT,
+    // Recent channel messages (all participants, other agents included) given to the agent as context.
+    historyLimit: Number(a.historyLimit ?? s.historyLimit ?? 20),
+    // Raven typing indicator over Frappe's socket.io. siteName = Frappe site (socket namespace);
+    // defaults to the baseUrl host.
+    typingIndicator: (a.typingIndicator ?? s.typingIndicator ?? true) !== false,
+    siteName: a.siteName ?? s.siteName ?? "",
+    // Optional reaction on the triggering message while the agent works (e.g. "👀"); off by default.
+    workingReaction: a.workingReaction ?? s.workingReaction ?? "",
+    mediaMaxBytes: Number(a.mediaMaxBytes ?? s.mediaMaxBytes ?? 25 * 1024 * 1024),
   };
 }
 
@@ -65,4 +74,9 @@ export const CLEAR_BASE_FIELDS = [
   "mutedChannels",
   "maxAgentChain",
   "groupPrompt",
+  "historyLimit",
+  "typingIndicator",
+  "siteName",
+  "workingReaction",
+  "mediaMaxBytes",
 ];

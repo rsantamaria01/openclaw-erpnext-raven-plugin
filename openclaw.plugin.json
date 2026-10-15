@@ -104,6 +104,21 @@
           },
           "groupPrompt": {
             "type": "string"
+          },
+          "historyLimit": {
+            "type": "number"
+          },
+          "typingIndicator": {
+            "type": "boolean"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "workingReaction": {
+            "type": "string"
+          },
+          "mediaMaxBytes": {
+            "type": "number"
           }
         },
         "additionalProperties": true

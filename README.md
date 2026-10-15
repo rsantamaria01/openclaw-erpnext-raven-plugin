@@ -25,7 +25,9 @@ Raven message ──Frappe Webhook (HMAC)──▶ gateway route /raven/webhook/
 - **Agent to agent:** an agent writing `@Name` produces a real Raven mention, so the other agent answers. `maxAgentChain` (default 4) caps consecutive agent hops per channel; a human message resets it.
 - **Visibility:** each agent only sees channels its Frappe user is a member of (Raven permissions decide).
 - **Outbound:** the shared `message` tool and cron delivery accept `raven:<channel id>` or `raven:<user email>` (the DM is created when needed). Markdown is converted to Raven HTML.
-- **UX:** 👀 reaction while the agent works; channel replies are posted as replies to the triggering message.
+- **Shared room context:** each turn gets the last `historyLimit` channel messages (everyone, other agents included), so an agent knows what the others said.
+- **Attachments:** files and images sent to an agent are downloaded (as the agent's user) and passed to it as media; files the agent sends are uploaded as real Raven attachments.
+- **UX:** Raven's own "typing…" indicator while the agent works (Frappe socket.io, authenticated with the agent's API key); channel replies are posted as replies to the triggering message.
 
 ## Requirements
 
@@ -62,6 +64,11 @@ Plain ESM JavaScript, no build step.
       allowFrom: ["owner@example.com"],                                     // humans allowed to talk to agents
       mutedChannels: ["alerts"],
       maxAgentChain: 4,
+      historyLimit: 20,                   // recent channel messages given as context (0 = off)
+      typingIndicator: true,              // Raven "typing…" while the agent works
+      siteName: "erp.example.com",        // Frappe site name = socket.io namespace (default: baseUrl host)
+      workingReaction: "",                // optional emoji toggled on the message while working
+      mediaMaxBytes: 26214400,
       // Optional. Placeholders {where} and {others}; default is an English prompt.
       groupPrompt: "You are in Raven, the team chat, in {where}. Other agents here: {others}. Mention another agent with @Name to ask it something. If you have nothing useful to add, reply NO_REPLY.",
       accounts: {
@@ -99,10 +106,10 @@ JSON body:
 
 Check: `openclaw channels status` shows one `Raven <account>` line per agent, running and connected.
 
-## Limitations
+## Notes and limitations
 
-- Attachments are sent as links (no Raven file upload yet); inbound files are passed to the agent as a path.
-- No Raven typing indicator (Raven exposes it only over its socket); the 👀 reaction stands in for it.
+- Each agent keeps its own session per channel. In the OpenClaw UI an agent's channel session shows its own turns; what the other agents said reaches it as recent-history context, not as transcript rows.
+- Agent media is loaded only from the agent's scoped media roots (its workspace and the host media store) or from what the host explicitly grants; arbitrary local files are refused.
 - Agent-to-agent direct messages are ignored; agents talk to each other in channels.
 
 ## License

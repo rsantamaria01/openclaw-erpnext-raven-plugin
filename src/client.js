@@ -135,6 +135,67 @@ export async function toggleReaction(account, messageId, emoji) {
   }
 }
 
+/** Authenticated GET of a Frappe file URL (e.g. /private/files/x.png); returns the raw Response. */
+export async function fetchRavenFile(account, fileUrl, signal) {
+  const { authorization, baseUrl } = resolveCredentials(account);
+  const url = /^https?:\/\//.test(fileUrl) ? fileUrl : baseUrl + fileUrl;
+  if (!url.startsWith(baseUrl + "/")) throw new Error(`raven: refusing to fetch file outside ${baseUrl}`);
+  const res = await fetch(url, {
+    headers: { Authorization: authorization },
+    signal: signal ?? AbortSignal.timeout(60000),
+  });
+  if (!res.ok) throw new Error(`raven: file download ${fileUrl} -> HTTP ${res.status}`);
+  return res;
+}
+
+/**
+ * Upload a file as a Raven message (Raven's own composer endpoint): creates the
+ * message and attaches the file in one call, as the account's user.
+ */
+export async function uploadRavenFile(account, channelId, { buffer, fileName, contentType }, replyToMessageId) {
+  const { authorization, baseUrl } = resolveCredentials(account);
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: contentType || "application/octet-stream" }), fileName || "archivo");
+  form.append("channelID", channelId);
+  form.append("caption", "");
+  form.append("is_private", "1");
+  form.append("compressImages", "0");
+  if (replyToMessageId) {
+    form.append("is_reply", "1");
+    form.append("linked_message", replyToMessageId);
+  }
+  const res = await fetch(baseUrl + "/api/method/raven.api.upload_file.upload_file_with_message", {
+    method: "POST",
+    headers: { Authorization: authorization, Accept: "application/json" },
+    body: form,
+    signal: AbortSignal.timeout(120000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`raven: upload ${fileName} -> HTTP ${res.status} ${text.slice(0, 200)}`);
+  try {
+    const j = JSON.parse(text);
+    return j.message?.name ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Messages older than `beforeMessage` in a channel (oldest first). Uses Raven's own
+ * chat-stream API: the generic REST list only returns the caller's own messages.
+ */
+export async function getRecentMessages(account, channelId, beforeMessage, limit) {
+  if (!limit || limit <= 0) return [];
+  const params = new URLSearchParams({ channel_id: channelId, from_message: beforeMessage, limit: String(limit) });
+  try {
+    const r = await ravenRequest(account, "GET", `/api/method/raven.api.chat_stream.get_older_messages?${params}`);
+    return [...(r.message?.messages ?? [])].reverse();
+  } catch (e) {
+    if (e.status === 403 || e.status === 404) return [];
+    throw e;
+  }
+}
+
 /** DM channel between this account's user and `email` (created if missing). */
 export async function ensureDirectChannel(account, email) {
   const r = await ravenRequest(account, "POST", "/api/method/raven.api.raven_channel.create_direct_message_channel", {
