@@ -1,0 +1,21 @@
+{
+  "name": "openclaw-channel-raven",
+  "version": "0.1.0",
+  "description": "Raven (Frappe chat) channel plugin for OpenClaw: each agent is a real Raven user.",
+  "type": "module",
+  "license": "MIT",
+  "openclaw": {
+    "extensions": ["./index.js"],
+    "setupEntry": "./setup-entry.js",
+    "channel": {
+      "id": "raven",
+      "label": "Raven",
+      "selectionLabel": "Raven (Frappe chat, webhook)",
+      "blurb": "Agents chat in Raven as their own Frappe users.",
+      "order": 95
+    },
+    "compat": {
+      "pluginApi": ">=2026.10.3"
+    }
+  }
+}
