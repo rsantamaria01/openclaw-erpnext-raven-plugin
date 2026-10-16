@@ -1,8 +1,6 @@
 // channels.raven config. One account per agent: each account is that agent's
 // own Frappe user, bound to the agent with a `bindings` entry
 // ({ agentId, match: { channel: "raven", accountId } }).
-import { resolveCommandsConfig } from "./commands.js";
-
 export const CHANNEL_ID = "raven";
 
 // Placeholders: {where} = "#channel" or "thread in #channel", {others} = "@A, @B".
@@ -13,6 +11,29 @@ export const DEFAULT_GROUP_PROMPT =
 
 const section = (cfg) => cfg?.channels?.[CHANNEL_ID] ?? {};
 const lower = (v) => String(v ?? "").trim().toLowerCase();
+const list = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+
+// A job is one of the agent's predetermined tasks when its description contains this marker.
+export const DEFAULT_TASK_MARKER = "[on-demand]";
+
+/** Merge channel-level and account-level `tasks` blocks (account wins; overrides merged by key). */
+export function resolveTasksConfig(section, account) {
+  const s = section?.tasks;
+  const a = account?.tasks;
+  if (!s && !a) return { enabled: false };
+  const m = { ...(s ?? {}), ...(a ?? {}) };
+  return {
+    enabled: m.enabled !== false,
+    marker: m.marker ?? DEFAULT_TASK_MARKER,
+    roles: list(m.roles).map(String),
+    users: list(m.users).map(lower),
+    owners: m.owners !== false,
+    roleCheckAccount: m.roleCheckAccount ?? "",
+    cli: m.cli ?? "openclaw",
+    cooldownSeconds: Number(m.cooldownSeconds ?? 300),
+    overrides: { ...(s?.overrides ?? {}), ...(a?.overrides ?? {}) },
+  };
+}
 
 export function listAccountIds(cfg) {
   return Object.keys(section(cfg).accounts ?? {});
@@ -52,8 +73,8 @@ export function resolveAccount(cfg, accountId) {
     // Optional reaction on the triggering message while the agent works (e.g. "👀"); off by default.
     workingReaction: a.workingReaction ?? s.workingReaction ?? "",
     mediaMaxBytes: Number(a.mediaMaxBytes ?? s.mediaMaxBytes ?? 25 * 1024 * 1024),
-    // Chat commands ("/name") that run OpenClaw automations, gated by owner, user or Frappe role.
-    commands: resolveCommandsConfig(s, a),
+    // Predetermined tasks (the agent's marked automations) people may start on demand: see tasks.js.
+    tasks: resolveTasksConfig(s, a),
   };
 }
 
@@ -83,5 +104,5 @@ export const CLEAR_BASE_FIELDS = [
   "siteName",
   "workingReaction",
   "mediaMaxBytes",
-  "commands",
+  "tasks",
 ];

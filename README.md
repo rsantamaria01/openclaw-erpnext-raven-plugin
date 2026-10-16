@@ -106,17 +106,28 @@ JSON body:
 
 Check: `openclaw channels status` shows one `Raven <account>` line per agent, running and connected.
 
-## Chat commands (run automations on demand)
+## Predetermined tasks (run automations on demand)
 
-People can start an existing OpenClaw automation (cron job) from Raven by typing a command such as `/research-market`. The **plugin** decides who may run it, so a prompt cannot talk the model into it. People who may not run a command can still chat with the agent normally.
+An agent can start its own scheduled work now when someone asks in Raven ("run the market research", "what can you do?"). The plugin gives the agent a `raven_tasks` tool with two actions:
 
-A person may run a command when any of these is true:
+- `list`: the agent's tasks, their schedule, where the result is delivered, whether one is running, and whether **the person in the conversation** may start it;
+- `run`: start one task now (`openclaw cron run <id>`). It runs exactly as scheduled: same prompt, model, tools and delivery.
 
-- they are an OpenClaw owner: `commands.ownerAllowFrom` contains `raven:<their Frappe user>` (turn off per command with `owners: false`);
-- their Frappe user is listed in the command's `users`;
-- their Frappe user has one of the command's `roles` (read live from Frappe, cached for 60 s; if roles cannot be read, the command is refused).
+The conversation stays a normal agent turn, so it is part of the agent's session and the agent answers in its own words.
 
-Commands only apply to people who may already talk to the agent (`allowFrom` / `dmPolicy` / `groupPolicy`), and only when the message is addressed to that account (a DM, one of its `defaultChannels`, a thread it started, or an @mention). Define them on the channel or per account; account entries are added to the channel ones.
+**What the tasks are** comes from OpenClaw, not from plugin config: every automation of that agent whose description contains the marker `[on-demand]`. Disabled automations with the marker are on-demand-only tasks.
+
+```bash
+openclaw cron edit <id> --description "[on-demand] Weekly market research; the PDF is posted in #marketing."
+```
+
+**Who may start them** is decided by the plugin from the trusted Raven sender, never by the model:
+
+- OpenClaw owners (the runtime owner bit, or `commands.ownerAllowFrom` containing `raven:<their Frappe user>`), unless `owners: false`;
+- Frappe users listed in `users`;
+- Frappe users that have one of `roles` (read live from Frappe, cached 60 s; if roles cannot be read, the run is refused).
+
+People who may not start a task can still chat with the agent. Other agents cannot start tasks. Set `tasks` on the channel or per account; the tool is only offered to agents whose account has a `tasks` block.
 
 ```json5
 {
@@ -126,23 +137,16 @@ Commands only apply to people who may already talk to the agent (`allowFrom` / `
       accounts: {
         analyst: {
           // ...
-          commands: {
-            prefix: "/",                 // default "/"
-            help: "commands",            // "/commands" lists what the sender may run; "" turns it off
-            roleCheckAccount: "",        // account whose Frappe credentials read roles (default: this account)
-            cli: "openclaw",             // OpenClaw CLI used to start the automation
-            messages: {                  // optional; placeholders {command} {description} {user} {minutes} {error}
-              started: "Started **{description}**. The report will be posted when it finishes."
-            },
-            entries: {
-              "research-market": {
-                description: "weekly market research",
-                automation: "<automation id from `openclaw cron list`>",
-                roles: ["System Manager", "Marketing Manager"],
-                users: [],
-                aliases: ["market"],
-                cooldownSeconds: 300     // ignore repeats while a run was just started
-              }
+          tasks: {
+            roles: ["System Manager", "Marketing Manager"], // existing Frappe roles
+            users: [],                    // extra Frappe users
+            owners: true,                 // OpenClaw owners may always start tasks
+            marker: "[on-demand]",        // "" = every automation of the agent
+            cooldownSeconds: 300,         // ignore repeats right after a start
+            roleCheckAccount: "",         // account whose Frappe credentials read roles (default: this one)
+            cli: "openclaw",
+            overrides: {                  // per automation id or name
+              "<automation id>": { roles: ["System Manager"] }
             }
           }
         }
@@ -152,7 +156,7 @@ Commands only apply to people who may already talk to the agent (`allowFrom` / `
 }
 ```
 
-The automation runs exactly as scheduled (same prompt, model, tools and delivery); the command only starts it now with `openclaw cron run <id>`. The account that reads roles needs read access to `Has Role` rows of users (Frappe `frappe.client.get_list` with `parent: "User"`). Command names must not clash with OpenClaw's own slash commands (`/new`, `/status`, …); unknown commands are passed to the agent unchanged.
+The account that reads roles needs read access to `Has Role` rows of users (Frappe `frappe.client.get_list` with `parent: "User"`). The tool is not affected by denying the core `cron` tool to the agent, so an agent can start its own marked tasks without managing automations.
 
 ## Notes and limitations
 

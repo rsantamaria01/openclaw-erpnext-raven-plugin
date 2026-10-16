@@ -8,6 +8,11 @@
   "channels": [
     "raven"
   ],
+  "contracts": {
+    "tools": [
+      "raven_tasks"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -98,17 +103,26 @@
                     "type": "string"
                   }
                 },
-                "commands": {
+                "tasks": {
                   "type": "object",
                   "properties": {
                     "enabled": {
                       "type": "boolean"
                     },
-                    "prefix": {
+                    "marker": {
                       "type": "string"
                     },
-                    "help": {
-                      "type": "string"
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "owners": {
                       "type": "boolean"
@@ -119,25 +133,16 @@
                     "cli": {
                       "type": "string"
                     },
-                    "messages": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
+                    "cooldownSeconds": {
+                      "type": "number"
                     },
-                    "entries": {
+                    "overrides": {
                       "type": "object",
                       "additionalProperties": {
                         "type": "object",
                         "properties": {
                           "enabled": {
                             "type": "boolean"
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "automation": {
-                            "type": "string"
                           },
                           "roles": {
                             "type": "array",
@@ -153,23 +158,8 @@
                           },
                           "owners": {
                             "type": "boolean"
-                          },
-                          "aliases": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "cooldownSeconds": {
-                            "type": "number"
-                          },
-                          "cli": {
-                            "type": "string"
                           }
                         },
-                        "required": [
-                          "automation"
-                        ],
                         "additionalProperties": false
                       }
                     }
@@ -198,17 +188,26 @@
           "mediaMaxBytes": {
             "type": "number"
           },
-          "commands": {
+          "tasks": {
             "type": "object",
             "properties": {
               "enabled": {
                 "type": "boolean"
               },
-              "prefix": {
+              "marker": {
                 "type": "string"
               },
-              "help": {
-                "type": "string"
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "users": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "owners": {
                 "type": "boolean"
@@ -219,25 +218,16 @@
               "cli": {
                 "type": "string"
               },
-              "messages": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
+              "cooldownSeconds": {
+                "type": "number"
               },
-              "entries": {
+              "overrides": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "object",
                   "properties": {
                     "enabled": {
                       "type": "boolean"
-                    },
-                    "description": {
-                      "type": "string"
-                    },
-                    "automation": {
-                      "type": "string"
                     },
                     "roles": {
                       "type": "array",
@@ -253,23 +243,8 @@
                     },
                     "owners": {
                       "type": "boolean"
-                    },
-                    "aliases": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "cooldownSeconds": {
-                      "type": "number"
-                    },
-                    "cli": {
-                      "type": "string"
                     }
                   },
-                  "required": [
-                    "automation"
-                  ],
                   "additionalProperties": false
                 }
               }
