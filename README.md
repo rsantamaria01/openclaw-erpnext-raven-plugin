@@ -106,6 +106,54 @@ JSON body:
 
 Check: `openclaw channels status` shows one `Raven <account>` line per agent, running and connected.
 
+## Chat commands (run automations on demand)
+
+People can start an existing OpenClaw automation (cron job) from Raven by typing a command such as `/research-market`. The **plugin** decides who may run it, so a prompt cannot talk the model into it. People who may not run a command can still chat with the agent normally.
+
+A person may run a command when any of these is true:
+
+- they are an OpenClaw owner: `commands.ownerAllowFrom` contains `raven:<their Frappe user>` (turn off per command with `owners: false`);
+- their Frappe user is listed in the command's `users`;
+- their Frappe user has one of the command's `roles` (read live from Frappe, cached for 60 s; if roles cannot be read, the command is refused).
+
+Commands only apply to people who may already talk to the agent (`allowFrom` / `dmPolicy` / `groupPolicy`), and only when the message is addressed to that account (a DM, one of its `defaultChannels`, a thread it started, or an @mention). Define them on the channel or per account; account entries are added to the channel ones.
+
+```json5
+{
+  commands: { ownerAllowFrom: ["raven:owner@example.com"] },
+  channels: {
+    raven: {
+      accounts: {
+        analyst: {
+          // ...
+          commands: {
+            prefix: "/",                 // default "/"
+            help: "commands",            // "/commands" lists what the sender may run; "" turns it off
+            roleCheckAccount: "",        // account whose Frappe credentials read roles (default: this account)
+            cli: "openclaw",             // OpenClaw CLI used to start the automation
+            messages: {                  // optional; placeholders {command} {description} {user} {minutes} {error}
+              started: "Started **{description}**. The report will be posted when it finishes."
+            },
+            entries: {
+              "research-market": {
+                description: "weekly market research",
+                automation: "<automation id from `openclaw cron list`>",
+                roles: ["System Manager", "Marketing Manager"],
+                users: [],
+                aliases: ["market"],
+                cooldownSeconds: 300     // ignore repeats while a run was just started
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The automation runs exactly as scheduled (same prompt, model, tools and delivery); the command only starts it now with `openclaw cron run <id>`. The account that reads roles needs read access to `Has Role` rows of users (Frappe `frappe.client.get_list` with `parent: "User"`). Command names must not clash with OpenClaw's own slash commands (`/new`, `/status`, …); unknown commands are passed to the agent unchanged.
+
 ## Notes and limitations
 
 - Each agent keeps its own session per channel. In the OpenClaw UI an agent's channel session shows its own turns; what the other agents said reaches it as recent-history context, not as transcript rows.

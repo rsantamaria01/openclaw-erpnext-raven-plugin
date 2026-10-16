@@ -97,6 +97,84 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "commands": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "prefix": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "owners": {
+                      "type": "boolean"
+                    },
+                    "roleCheckAccount": {
+                      "type": "string"
+                    },
+                    "cli": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "entries": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "automation": {
+                            "type": "string"
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "users": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "owners": {
+                            "type": "boolean"
+                          },
+                          "aliases": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "cooldownSeconds": {
+                            "type": "number"
+                          },
+                          "cli": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "automation"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "additionalProperties": true
@@ -119,6 +197,84 @@
           },
           "mediaMaxBytes": {
             "type": "number"
+          },
+          "commands": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "help": {
+                "type": "string"
+              },
+              "owners": {
+                "type": "boolean"
+              },
+              "roleCheckAccount": {
+                "type": "string"
+              },
+              "cli": {
+                "type": "string"
+              },
+              "messages": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "entries": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "automation": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "owners": {
+                      "type": "boolean"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cooldownSeconds": {
+                      "type": "number"
+                    },
+                    "cli": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "automation"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": true

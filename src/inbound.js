@@ -21,6 +21,7 @@ import {
   toggleReaction,
 } from "./client.js";
 import { sendRavenMediaUrls } from "./media.js";
+import { handleRavenCommand } from "./commands.js";
 import { closeTyping, startTyping, stopTyping } from "./typing.js";
 
 const RavenIngressPermanentError = createChannelIngressError("RavenIngressPermanentError", { withReason: true });
@@ -226,6 +227,25 @@ async function dispatchRavenMessage({ account, msg, lifecycle, log }) {
   const senderName = await displayNameOf(live, owner);
   const isDirect = target.kind === "direct";
   const peer = isDirect ? { kind: "direct", id: owner } : { kind: "group", id: String(msg.channel_id) };
+
+  // Chat commands are decided by the plugin (owner / user / Frappe role), never by the model.
+  // Only humans who may already talk to this agent can use them.
+  const policy = isDirect ? live.dmPolicy : live.groupPolicy;
+  const mayTalk = policy === "open" || live.allowFrom.includes("*") || live.allowFrom.includes(owner);
+  if (!target.senderAgent && mayTalk && live.commands.enabled) {
+    const roleAccount = live.commands.roleCheckAccount ? resolveAccount(cfg, live.commands.roleCheckAccount) : live;
+    const handled = await handleRavenCommand({
+      cfg,
+      account: live,
+      roleAccount,
+      channelId: CHANNEL_ID,
+      text: target.text,
+      email: owner,
+      reply: (md) => sendRavenMessage(live, String(msg.channel_id), markdownToRavenHtml(md, []), target.replyTo),
+      log,
+    });
+    if (handled) return;
+  }
 
   const route = rt.channel.routing.resolveAgentRoute({
     cfg,

@@ -1,6 +1,8 @@
 // channels.raven config. One account per agent: each account is that agent's
 // own Frappe user, bound to the agent with a `bindings` entry
 // ({ agentId, match: { channel: "raven", accountId } }).
+import { resolveCommandsConfig } from "./commands.js";
+
 export const CHANNEL_ID = "raven";
 
 // Placeholders: {where} = "#channel" or "thread in #channel", {others} = "@A, @B".
@@ -50,6 +52,8 @@ export function resolveAccount(cfg, accountId) {
     // Optional reaction on the triggering message while the agent works (e.g. "👀"); off by default.
     workingReaction: a.workingReaction ?? s.workingReaction ?? "",
     mediaMaxBytes: Number(a.mediaMaxBytes ?? s.mediaMaxBytes ?? 25 * 1024 * 1024),
+    // Chat commands ("/name") that run OpenClaw automations, gated by owner, user or Frappe role.
+    commands: resolveCommandsConfig(s, a),
   };
 }
 
@@ -79,4 +83,5 @@ export const CLEAR_BASE_FIELDS = [
   "siteName",
   "workingReaction",
   "mediaMaxBytes",
+  "commands",
 ];
