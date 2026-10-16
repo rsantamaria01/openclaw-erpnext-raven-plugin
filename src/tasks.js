@@ -81,6 +81,12 @@ async function agentTasks(tasks, agentId, { fresh = false } = {}) {
     .filter((j) => (tasks.overrides[j.id] ?? tasks.overrides[j.name])?.enabled !== false);
 }
 
+function deliveryLabel(d) {
+  if (!d?.to) return null;
+  const to = String(d.to);
+  return d.channel && !to.startsWith(`${d.channel}:`) ? `${d.channel}:${to}` : to;
+}
+
 function describeJob(job, marker) {
   const text = String(job.description ?? "")
     .replace(new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "")
@@ -99,7 +105,7 @@ function describeJob(job, marker) {
     name: job.displayName || job.name,
     description: text || job.displayName || job.name,
     schedule,
-    deliversTo: job.delivery?.to ? `${job.delivery.channel ?? ""} ${job.delivery.to}`.trim() : null,
+    deliversTo: deliveryLabel(job.delivery),
     running: Boolean(st.runningAtMs),
     lastRunAt: st.lastRunAtMs ? new Date(st.lastRunAtMs).toISOString() : null,
     lastRunStatus: st.lastRunStatus ?? null,
@@ -158,7 +164,7 @@ const result = (details) => ({
 
 /** Tool factory registered by the plugin entry; returns null when tasks are not set up for this turn. */
 export function createTasksTool(ctx, log) {
-  if (ctx.messageChannel && ctx.messageChannel !== CHANNEL_ID) return null;
+  if (ctx.messageChannel && lower(ctx.messageChannel).split(":")[0] !== CHANNEL_ID) return null;
   const cfg0 = ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
   const accountId0 = accountFor(cfg0, ctx);
   if (!ctx.agentId || !accountId0 || !resolveAccount(cfg0, accountId0).tasks.enabled) return null;
